@@ -1,7 +1,8 @@
 
-exports.app = function (server){
+exports.app = function (port){
     const express = require('express');
     const app = express();
+    const server = require('http').Server(app);
     const io = require('socket.io')(server);
     const hbs = require('hbs');
     const ttn = require('ttn');
@@ -49,7 +50,7 @@ exports.app = function (server){
     
     const dataMapping = config.dataMapping;
     const mapCenter = config.mapCenter;
-    
+
     // And handle requests
     app.get('/', function (req, res, next) {
         let d = Object.keys(devices).map(k => {
@@ -81,6 +82,24 @@ exports.app = function (server){
         });
     });
 
+    app.post('/',  function(req, res){
+        console.log('POST')
+        var data = req.body;
+
+        try{
+            var json = JSON.parse(data);
+            app.addPayload(json);
+        }catch(error){
+            console.log(error);
+        }
+
+        res.set('Content-Type', 'text/plain');
+        res.send('post received');
+    })
+
+    server.listen(port, function () {
+        console.log('Web server listening on port %s!', port);
+    });
       
     io.on('connection', socket => {
         socket.on('location-change', (appId, devId, lat, lng) => {
@@ -105,7 +124,8 @@ exports.app = function (server){
             }, lat, lng);
         });
     });
-    
+
+
     function exitHandler(options, err) {
         if (err) {
             console.error('Application exiting...', err);
@@ -133,49 +153,47 @@ exports.app = function (server){
     process.on('SIGUSR2', exitHandler.bind(null, { exit: true }));
     process.on('uncaughtException', exitHandler.bind(null, { exit: true }));
 
-    return {
-        addPayload : addPayload = function (payload) {
-            var devId = payload.dev_id;
-            appId = 'noiselogger';
-            console.log('[%s] Received uplink', appId, devId, payload.payload_fields);
-    
-            
-            let key = appId + ':' + devId;
-            let d = devices[key] = devices[key] || {};
-            d.eui = payload.hardware_serial;
-    
-            for (let mapKey of Object.keys(dataMapping)) {
-                d[mapKey] = d[mapKey] || [];
+    app.addPayload = function (payload) {
+        var devId = payload.dev_id;
+        appId = 'noiselogger';
+        console.log('[%s] Received uplink', appId, devId, payload.payload_fields);
+
+        
+        let key = appId + ':' + devId;
+        let d = devices[key] = devices[key] || {};
+        d.eui = payload.hardware_serial;
+
+        for (let mapKey of Object.keys(dataMapping)) {
+            d[mapKey] = d[mapKey] || [];
+        }
+            d.lat = payload.payload_fields.lon;
+            d.lng = payload.payload_fields.lat;
+
+
+        for (let mapKey of Object.keys(dataMapping)) {
+            let v;
+            try {
+                v = dataMapping[mapKey].data(payload);
             }
-             d.lat = payload.payload_fields.lon;
-                d.lng = payload.payload_fields.lat;
-    
-    
-            for (let mapKey of Object.keys(dataMapping)) {
-                let v;
-                try {
-                    v = dataMapping[mapKey].data(payload);
-                }
-                catch (ex) {
-                    console.error('dataMapping[' + mapKey + '].data() threw an error', ex);
-                    throw ex;
-                }
-                console.log(v, typeof v);
-    
-                if (typeof v !== 'undefined') {
-                    d[mapKey].push({
-                        ts: new Date(payload.metadata.time),
-                        value: v
-                    });
-    
-                    io.emit('value-change', mapKey, {
-                        appId: appId,
-                        devId: devId,
-                        eui: d.eui,
-                        lat: d.lat,
-                        lng: d.lng
-                    }, payload.metadata.time, v);
-                }
+            catch (ex) {
+                console.error('dataMapping[' + mapKey + '].data() threw an error', ex);
+                throw ex;
+            }
+            console.log(v, typeof v);
+
+            if (typeof v !== 'undefined') {
+                d[mapKey].push({
+                    ts: new Date(payload.metadata.time),
+                    value: v
+                });
+
+                io.emit('value-change', mapKey, {
+                    appId: appId,
+                    devId: devId,
+                    eui: d.eui,
+                    lat: d.lat,
+                    lng: d.lng
+                }, payload.metadata.time, v);
             }
         }
     }

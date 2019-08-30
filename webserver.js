@@ -32,14 +32,22 @@ exports.app = function (port){
     
         title: 'Decibel monitor',
         dataMapping: {
-            decibel: {
-                graphTitle: 'Decibel',
-                yAxisLabel: 'Decibel',
+            dbAavg: {
+                graphTitle: 'Average',
+                yAxisLabel: 'dbA',
                 minY: 20, // suggested numbers, if numbers out of this range are received the graph will adjust
-                maxY: 120,
-                numberOfEvents: 60, // no. of events we send to the client
-                data: payload => payload.payload_fields.decibel
+                maxY: 110,
+                numberOfEvents: 720, // no. of events we send to the client
+                data: payload => payload.payload_fields.dbAavg
             },
+            dbPeak: {
+                graphTitle: 'Peak',
+                yAxisLabel: 'dbA',
+                minY: 30, // suggested numbers, if numbers out of this range are received the graph will adjust
+                maxY: 110,
+                numberOfEvents: 720, // no. of events we send to the client
+                data: payload => payload.payload_fields.dbApeak
+            }
             // want more properties? just add more objects here
         },
         mapCenter: {
@@ -167,9 +175,9 @@ exports.app = function (port){
         for (let mapKey of Object.keys(dataMapping)) {
             d[mapKey] = d[mapKey] || [];
         }
-            d.lat = payload.payload_fields.lon;
-            d.lng = payload.payload_fields.lat;
 
+        d.lat = payload.payload_fields.lat;
+        d.lng = payload.payload_fields.lon;
 
         for (let mapKey of Object.keys(dataMapping)) {
             let v;

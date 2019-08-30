@@ -82,13 +82,14 @@ exports.app = function (port){
         });
     });
 
+    app.use(express.json());
+
     app.post('/',  function(req, res){
         console.log('POST')
         var data = req.body;
-
+        console.log(data)
         try{
-            var json = JSON.parse(data);
-            app.addPayload(json);
+            app.addPayload(data);
         }catch(error){
             console.log(error);
         }
